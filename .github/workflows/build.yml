@@ -3,38 +3,94 @@ name: Lindroid pipa (Lineage + Magisk)
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      kernel_branch:
+        description: LineageOS android_kernel_xiaomi_sm8250 branch
+        required: true
+        default: lineage-22.2
+        type: choice
+        options:
+          - lineage-21
+          - lineage-22.1
+          - lineage-22.2
+          - lineage-23.0
+          - lineage-23.2
+      create_release:
+        description: Publish GitHub Release with kernel + Magisk zip
+        type: boolean
+        default: true
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: lindroid-pipa-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  KERNEL_BRANCH: ${{ github.event.inputs.kernel_branch || 'lineage-22.2' }}
+
 jobs:
   kernel:
-    name: Kernel Lindroid EVDI
+    name: Build Lindroid kernel (pipa)
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
 
       - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl build-essential flex bison libssl-dev libelf-dev bc zip
+          sudo apt-get install -y git curl build-essential flex bison libssl-dev \
+            libelf-dev bc zip ccache python3 \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            libncurses-dev dwarves
 
-      - name: Integrate DRM + config
+      - name: ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache-dir
+          key: ccache-kernel-${{ env.KERNEL_BRANCH }}-${{ github.sha }}
+          restore-keys: |
+            ccache-kernel-${{ env.KERNEL_BRANCH }}-
+            ccache-kernel-
+
+      - name: Build kernel + AnyKernel3
         run: |
           chmod +x kernel/integrate-drm.sh scripts/*.sh
+          export PATH="/usr/lib/ccache:$PATH"
+          export CCACHE_DIR="${GITHUB_WORKSPACE}/.ccache-dir"
+          export USE_CCACHE=1
+          mkdir -p "$CCACHE_DIR"
           ./scripts/ci-kernel.sh
 
       - uses: actions/upload-artifact@v4
         with:
           name: lindroid-pipa-kernel
-          path: artifacts/
+          path: |
+            artifacts/lindroid-pipa-anykernel.zip
+            artifacts/lindroid-pipa-kernel-*.zip
+            artifacts/Image
+            artifacts/kernel.config
+            artifacts/lindroid.config
+            artifacts/pipa.config
+            artifacts/build.log
           if-no-files-found: error
+          compression-level: 0
 
   magisk:
     name: Magisk module zip
@@ -54,3 +110,62 @@ jobs:
           name: lindroid-pipa-magisk
           path: artifacts/
           if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: [kernel, magisk]
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: lindroid-pipa-kernel
+          path: release/kernel
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: lindroid-pipa-magisk
+          path: release/magisk
+
+      - name: Stage release assets
+        id: stage
+        run: |
+          mkdir -p dist
+          cp -f release/kernel/lindroid-pipa-anykernel.zip dist/ || true
+          cp -f release/kernel/lindroid-pipa-kernel-*.zip dist/ 2>/dev/null || true
+          cp -f release/kernel/Image dist/Image || true
+          cp -f release/kernel/kernel.config dist/ || true
+          cp -f release/magisk/lindroid-pipa-magisk.zip dist/ || true
+          cp -f release/magisk/install-magisk.md dist/ 2>/dev/null || true
+          ls -lh dist/
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=nightly-${KERNEL_BRANCH}-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.stage.outputs.tag }}
+          name: Lindroid pipa ${{ steps.stage.outputs.tag }}
+          body: |
+            ## Artifacts
+            - **lindroid-pipa-anykernel.zip** — flash in recovery / Magisk (AnyKernel3, `pipa`)
+            - **Image** — raw kernel image
+            - **lindroid-pipa-magisk.zip** — Magisk module skeleton (replace LindroidUI libs for your `ro.system.build.id`)
+
+            Kernel branch: `${{ env.KERNEL_BRANCH }}` (LineageOS `android_kernel_xiaomi_sm8250`)
+            Includes Lindroid EVDI + LXC namespace configs.
+
+            See [docs/install-magisk.md](https://github.com/${{ github.repository }}/blob/main/docs/install-magisk.md).
+          files: dist/*
+          generate_release_notes: true
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

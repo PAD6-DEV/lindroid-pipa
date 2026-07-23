@@ -1,61 +1,49 @@
 # Lindroid for Xiaomi Pad 6 (pipa) — Lineage + Magisk
 
-**No full custom ROM.** Use stock/community **LineageOS** (or similar) + **Magisk/KernelSU** + a Lindroid-ready **kernel** and Magisk **module**.
+**No full custom ROM.** Stock/community **LineageOS** + **Magisk/KernelSU** + CI-built **Lindroid kernel** + Magisk **module**.
 
-Based on upstream Lindroid install notes and
-[fish4terrisa-MSDSM/lindroid_module](https://github.com/fish4terrisa-MSDSM/lindroid_module)
-(Android 14 tested with KernelSU; Magisk untested upstream).
+Releases: https://github.com/PAD6-DEV/lindroid-pipa/releases
 
-## What you flash
+## Flash
 
-1. **LineageOS for pipa** (stock community build — not a Lindroid-forked ROM)  
-2. **Magisk** (or KernelSU)  
-3. **CI kernel** with LXC namespaces + `CONFIG_DRM_LINDROID_EVDI`  
-4. **Lindroid Magisk module** (LindroidUI / composer libs; SELinux permissive for now)
+1. LineageOS for `pipa` + Magisk  
+2. Flash **lindroid-pipa-anykernel.zip** from [Releases](https://github.com/PAD6-DEV/lindroid-pipa/releases) (recovery or Magisk)  
+3. Build/replace LindroidUI libs in the Magisk zip for your `ro.system.build.id` — [docs/install-magisk.md](docs/install-magisk.md)  
+4. `adb shell su -c setenforce 0` → open LindroidUI  
 
-## What CI builds
+## CI (GitHub Actions only)
 
-| Job | Runner | Output |
-|-----|--------|--------|
-| Kernel prep + Image | `ubuntu-latest` | EVDI-integrated tree, `lindroid.config`, optional `Image` |
-| Magisk module zip | `ubuntu-latest` | Module skeleton + instructions to drop in built APK/libs |
+| Job | Output |
+|-----|--------|
+| **Build Lindroid kernel** | Compiles `Image` from LineageOS `android_kernel_xiaomi_sm8250` + EVDI + LXC configs → **AnyKernel3 zip** |
+| Magisk module | Zip skeleton |
+| Release | Uploads kernel zip + Image + Magisk zip to GitHub Releases (tags `v*`, `main` nightlies, or workflow_dispatch) |
 
-Full `brunch` ROM builds are **out of scope**.
+Manual run: Actions → **Lindroid pipa** → Run workflow → pick kernel branch (`lineage-22.2` default).
 
-## Install (short)
+```bash
+# local reproduction of CI scripts (still clones into .ci-kernel/, not your trees)
+KERNEL_BRANCH=lineage-22.2 ./scripts/ci-kernel.sh
+```
 
-1. Unlock bootloader; flash Lineage for `pipa` + Magisk.  
-2. Flash CI **boot** image (Lindroid kernel) matching your Lineage base.  
-3. Build or obtain `LindroidUI` + libs for your ROM’s `ro.system.build.id` (see [docs/install-magisk.md](docs/install-magisk.md)).  
-4. Pack/flash Magisk module; set SELinux permissive; open LindroidUI.  
-5. Create/attach container (upstream commands in [docs/usage.md](docs/usage.md)).
-
-A14+ soft-reboot / casefold: Telegram pin — https://t.me/linux_on_droid
-
-## Kernel configs
+## Kernel configs added
 
 ```
-CONFIG_SYSVIPC=y
-CONFIG_UTS_NS=y
-CONFIG_PID_NS=y
-CONFIG_IPC_NS=y
-CONFIG_USER_NS=y
-CONFIG_NET_NS=y
-CONFIG_CGROUP_DEVICE=y
-CONFIG_CGROUP_FREEZER=y
+CONFIG_SYSVIPC / UTS/PID/IPC/USER/NET_NS / CGROUP_DEVICE / CGROUP_FREEZER
 CONFIG_DRM_LINDROID_EVDI=y
 ```
+
+Plus Lineage fragments: `kona-perf` + `debugfs` + `sm8250-common` + `pipa.config`.
 
 ## Layout
 
 | Path | Role |
 |------|------|
-| `kernel/` | EVDI integrate + defconfig fragment |
-| `magisk/` | Module template (apphwc) |
-| `scripts/ci-kernel.sh` | CI kernel job |
-| `scripts/ci-magisk.sh` | Package Magisk zip |
-| `docs/install-magisk.md` | Full Magisk path |
-| `docs/usage.md` | Container attach / logs |
+| `scripts/ci-kernel.sh` | Clone Lineage kernel, EVDI, build Image, AnyKernel3 |
+| `kernel/` | EVDI integrate + config fragments |
+| `anykernel/` | pipa AnyKernel3 script |
+| `magisk/` | Magisk module template |
+| `docs/install-magisk.md` | Full install notes |
 
 ## License
 

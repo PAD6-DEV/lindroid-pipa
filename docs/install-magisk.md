@@ -20,15 +20,14 @@ adb shell su -c id
 
 ## 2. Lindroid kernel
 
-CI prepares:
+CI builds a real `Image` and publishes **lindroid-pipa-anykernel.zip** on
+[Releases](https://github.com/PAD6-DEV/lindroid-pipa/releases).
 
-- `drivers/lindroid-drm` (EVDI)  
-- `lindroid.config` fragment  
+1. Pick a release whose kernel branch matches your Lineage (e.g. `lineage-22.2`).  
+2. Flash `lindroid-pipa-anykernel.zip` in recovery (or Magisk module install for AK3).  
+3. Keep a stock `boot` backup — wrong branch = no boot.
 
-Flash a **boot image built with that kernel** for your Lineage major version.  
-Mismatched kernels will not boot — match Lineage 21 / 22 / … tree to your zip.
-
-Until CI publishes a ready `boot.img`, build Image with the fragment from this repo’s artifacts and pack with your Lineage ramdisk (`mkbootimg` / Android `boot.img` tools).
+Artifacts also include raw `Image` + `kernel.config` for debugging.
 
 ## 3. Magisk module (LindroidUI)
 
