@@ -1,15 +1,10 @@
-name: Lindroid pipa
+name: Lindroid pipa (Lineage + Magisk)
 
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      full_rom:
-        description: "Run full Lineage+Lindroid ROM build (needs self-hosted runner)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -20,7 +15,7 @@ concurrency:
 
 jobs:
   kernel:
-    name: Kernel Lindroid EVDI (CI)
+    name: Kernel Lindroid EVDI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,64 +23,34 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl build-essential flex bison libssl-dev libelf-dev bc
+          sudo apt-get install -y git curl build-essential flex bison libssl-dev libelf-dev bc zip
 
-      - name: Integrate DRM + config fragment
+      - name: Integrate DRM + config
         run: |
-          chmod +x kernel/integrate-drm.sh scripts/ci-kernel.sh
+          chmod +x kernel/integrate-drm.sh scripts/*.sh
           ./scripts/ci-kernel.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: lindroid-pipa-kernel-prep
+          name: lindroid-pipa-kernel
           path: artifacts/
           if-no-files-found: error
 
-  rom:
-    name: Full Lineage 21 + Lindroid ROM
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_rom }}
-    runs-on: [self-hosted, linux, lindroid-pipa]
-    timeout-minutes: 720
+  magisk:
+    name: Magisk module zip
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install repo + deps
+      - name: Package module
         run: |
-          chmod +x scripts/*.sh kernel/*.sh
           sudo apt-get update
-          sudo apt-get install -y git-core gnupg flex bison build-essential \
-            zip curl zlib1g-dev libc6-dev-i386 libncurses5 lib32ncurses-dev \
-            x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev \
-            libxml2-utils xsltproc unzip fontconfig python3 python-is-python3 \
-            rsync libssl-dev libelf-dev bc
-          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o /tmp/repo
-          sudo install -m 0755 /tmp/repo /usr/local/bin/repo
-          git config --global user.email "ci@pad6.dev"
-          git config --global user.name "Lindroid pipa CI"
-
-      - name: Sync
-        env:
-          ANDROID_BUILD_TOP: ${{ github.workspace }}/android
-          SYNC_JOBS: "8"
-        run: ./scripts/ci-sync.sh
-        timeout-minutes: 240
-
-      - name: Prepare Lindroid
-        env:
-          ANDROID_BUILD_TOP: ${{ github.workspace }}/android
-        run: ./scripts/ci-prepare.sh
-
-      - name: Build
-        env:
-          ANDROID_BUILD_TOP: ${{ github.workspace }}/android
-          ARTIFACT_DIR: ${{ github.workspace }}/artifacts
-          BUILD_JOBS: "8"
-        run: ./scripts/ci-build.sh
-        timeout-minutes: 480
+          sudo apt-get install -y zip curl
+          chmod +x scripts/ci-magisk.sh
+          ./scripts/ci-magisk.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: lindroid-pipa-rom
+          name: lindroid-pipa-magisk
           path: artifacts/
           if-no-files-found: error
-          retention-days: 14

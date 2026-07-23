@@ -1,5 +1,6 @@
-# Usage notes after flashing Lindroid on pipa
-# Source: Lindroid Telegram pin / lindroid.org
+# After Magisk + LindroidUI (stock Lineage)
+
+See [install-magisk.md](install-magisk.md) for flash order.
 
 ## Attach
 
@@ -39,15 +40,9 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 ## Wayland apps
 
-```bash
-# with XDG hack:
-EGL_PLATFORM=wayland WAYLAND_DISPLAY=wayland-0 APP
+Use Lindroid display; set `WAYLAND_DISPLAY` as provided by create-disp / KWin.
 
-# Plasma via DM:
-XDG_RUNTIME_DIR=/run/user/1000 EGL_PLATFORM=wayland WAYLAND_DISPLAY=wayland-0 APP
-```
+## Soft reboot / casefold
 
-## Soft reboot (A14+) / casefold overlayfs
-
-Temporary workarounds are only in the Lindroid Telegram pinned message:
-https://t.me/linux_on_droid
+Telegram pin: https://t.me/linux_on_droid  
+SELinux: `setenforce 0` until sepolicy lands in the Magisk module.
