@@ -1,0 +1,6 @@
+.ci-kernel/
+android/
+artifacts/
+*.img
+*.zip
+.repo/

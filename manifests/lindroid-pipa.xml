@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Local manifest for Lindroid on Xiaomi Pad 6 (pipa) + LineageOS 21.
+  Copy to $ANDROID_BUILD_TOP/.repo/local_manifests/lindroid-pipa.xml
+-->
+<manifest>
+  <!-- Lindroid -->
+  <project name="Linux-on-droid/vendor_lindroid" path="vendor/lindroid" remote="github" revision="lindroid-21" />
+  <project name="Linux-on-droid/vendor_extra" path="vendor/extra" remote="github" revision="lindroid-21" />
+  <project name="Linux-on-droid/external_lxc" path="external/lxc" remote="github" revision="lindroid-21" />
+  <project name="Linux-on-droid/libhybris" path="libhybris" remote="github" revision="lindroid-21" />
+
+  <!--
+    Device / kernel / vendor for pipa are pulled by Lineage roomservice
+    after `breakfast lineage_pipa` or via default.xml from LineageOS.
+    Official trees (lineage-21):
+      device/xiaomi/pipa
+      device/xiaomi/sm8250-common
+      kernel/xiaomi/sm8250
+      vendor/xiaomi/pipa
+      vendor/xiaomi/sm8250-common
+  -->
+</manifest>
