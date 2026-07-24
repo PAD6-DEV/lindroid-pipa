@@ -11,19 +11,19 @@ Releases: https://github.com/PAD6-DEV/lindroid-pipa/releases
 3. Build/replace LindroidUI libs in the Magisk zip for your `ro.system.build.id` — [docs/install-magisk.md](docs/install-magisk.md)  
 4. `adb shell su -c setenforce 0` → open LindroidUI  
 
-## CI (GitHub Actions only)
+## CI
 
-| Job | Output |
-|-----|--------|
-| **Build Lindroid kernel** | Compiles `Image` from LineageOS `android_kernel_xiaomi_sm8250` + EVDI + LXC configs → **AnyKernel3 zip** |
-| **Build LindroidUI Magisk** | AOSP sync + `m LindroidUI` → **lindroid-pipa-magisk.zip** (APK + libs) |
-| Release | Uploads kernel zip + Image + Magisk zip to GitHub Releases (tags `v*`, `main` nightlies, or workflow_dispatch) |
+| Where | Job | Disk |
+|-------|-----|------|
+| **GitHub Actions** | Kernel AnyKernel3 + Releases | OK for kernel |
+| **CircleCI** (`xlarge` machine, ~150 GB) | **LindroidUI Magisk** (`m LindroidUI`) | Better fit than GHA / 46 GB local |
 
-Manual run: Actions → **Lindroid pipa** → Run workflow → pick kernel branch (`lineage-22.2` default).
+Full ROM brunch still will **not** fit on CircleCI. Magisk is LindroidUI-only.
 
 ```bash
-# local reproduction of CI scripts (still clones into .ci-kernel/, not your trees)
+# local reproduction (needs ~100GB+ free for Magisk AOSP)
 KERNEL_BRANCH=lineage-22.2 ./scripts/ci-kernel.sh
+AOSP_TAG=android-14.0.0_r75 ./scripts/ci-magisk.sh
 ```
 
 ## Kernel configs added

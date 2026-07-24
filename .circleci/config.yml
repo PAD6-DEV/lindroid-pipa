@@ -1,0 +1,94 @@
+# CircleCI: LindroidUI Magisk (AOSP) — ~150GB machine disk
+# Full ROM brunch will not fit; LindroidUI-only is borderline but viable.
+version: 2.1
+
+parameters:
+  aosp_tag:
+    type: string
+    default: "android-14.0.0_r75"
+  lindroid_ref:
+    type: string
+    default: "lindroid-21"
+  build_kernel:
+    type: boolean
+    default: false
+
+jobs:
+  magisk:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: xlarge
+    environment:
+      AOSP_TAG: << pipeline.parameters.aosp_tag >>
+      LINDROID_REF: << pipeline.parameters.lindroid_ref >>
+      WORK_DIR: /tmp/lindroid-aosp
+      ARTIFACT_DIR: /tmp/lindroid-artifacts
+    steps:
+      - checkout
+      - run:
+          name: Disk before
+          command: df -h
+      - run:
+          name: Dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y git curl zip unzip python3 python-is-python3 \
+              openjdk-17-jdk rsync libxml2-utils xsltproc build-essential
+            mkdir -p "$HOME/bin"
+            curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo \
+              -o "$HOME/bin/repo"
+            chmod +x "$HOME/bin/repo"
+            echo 'export PATH="$HOME/bin:$PATH"' >> "$BASH_ENV"
+      - run:
+          name: Build LindroidUI Magisk zip
+          no_output_timeout: 60m
+          command: |
+            chmod +x scripts/*.sh
+            mkdir -p "$WORK_DIR" "$ARTIFACT_DIR"
+            ./scripts/ci-magisk.sh
+      - run:
+          name: Disk after
+          command: df -h; ls -lh "$ARTIFACT_DIR"
+      - store_artifacts:
+          path: /tmp/lindroid-artifacts
+          destination: lindroid-pipa-magisk
+
+  kernel:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: xlarge
+    environment:
+      KERNEL_BRANCH: lineage-22.2
+      WORK_DIR: /tmp/lindroid-kernel
+      ARTIFACT_DIR: /tmp/lindroid-artifacts
+    steps:
+      - checkout
+      - run:
+          name: Dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y git curl build-essential flex bison libssl-dev \
+              libelf-dev bc zip python3 gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+              libncurses-dev dwarves
+      - run:
+          name: Build Lindroid kernel AnyKernel3
+          no_output_timeout: 60m
+          command: |
+            chmod +x kernel/integrate-drm.sh scripts/*.sh
+            mkdir -p "$WORK_DIR" "$ARTIFACT_DIR"
+            ./scripts/ci-kernel.sh
+      - store_artifacts:
+          path: /tmp/lindroid-artifacts
+          destination: lindroid-pipa-kernel
+
+workflows:
+  magisk:
+    when:
+      not: << pipeline.parameters.build_kernel >>
+    jobs:
+      - magisk
+  magisk-and-kernel:
+    when: << pipeline.parameters.build_kernel >>
+    jobs:
+      - magisk
+      - kernel

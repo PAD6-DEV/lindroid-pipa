@@ -31,11 +31,12 @@ Artifacts also include raw `Image` + `kernel.config` for debugging.
 
 ## 3. Magisk module (LindroidUI)
 
-CI builds **LindroidUI** + JNI/composer against AOSP `aosp_arm64` (`android-14.0.0_r75` by default) and publishes **lindroid-pipa-magisk.zip**.
+**CircleCI** (not GHA) builds LindroidUI against AOSP `aosp_arm64` — machine disk is ~150 GB.
 
-1. Flash that zip in Magisk → reboot  
-2. Prefer a ROM whose API matches the AOSP tag used in the release notes  
-3. If the app crashes on a mismatched `ro.system.build.id`, rebuild with workflow input `aosp_tag` set to a closer tag (or rebuild locally with `./scripts/ci-magisk.sh`)
+1. Run the CircleCI pipeline on this repo (`.circleci/config.yml`)  
+2. Download **lindroid-pipa-magisk.zip** from CircleCI artifacts  
+3. Flash in Magisk → reboot; prefer a ROM close to the AOSP tag (`android-14.0.0_r75` default)  
+4. Optional: `setenforce 0` before first launch  
 
 Still Magisk/apphwc-only — LXC/libhybris container side is separate (upstream Lindroid docs).
 
