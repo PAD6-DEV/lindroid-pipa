@@ -74,8 +74,8 @@ fi
 
 # Drop bulky unused trees (need headroom for out/).
 # Keep: prebuilts/bazel, kernel/configs/, cts.
-# Soong parses the WHOLE tree — deleting test/ leaves csuite_test undefined unless
-# we also strip Android.bp files that reference it.
+# Soong parses the WHOLE tree — deleting test harnesses leaves their defaults /
+# module types undefined unless we strip dependents and/or stub the defaults.
 for d in \
   device/google \
   device/linaro \
@@ -83,7 +83,7 @@ for d in \
   prebuilts/gcc/darwin-x86 prebuilts/qemu-kernel \
   external/webrtc toolchain/pyston \
   art/test development/samples development/apps \
-  external/chromium-webview external/deqp \
+  external/chromium-webview external/deqp external/deqp-deps \
   prebuilts/asuite prebuilts/android-emulator \
   prebuilts/remoteexecution-client \
   tools/ndkports tools/vendor \
@@ -95,12 +95,15 @@ do
 done
 # Drop module test trees (optional disk reclaim)
 if [[ -d packages/modules ]]; then
-  find packages/modules -type d -name tests -prune -print 2>/dev/null \
+  find packages/modules -type d \( -name tests -o -name unittest -o -name unit_tests \) -prune -print 2>/dev/null \
     | while read -r t; do rm -rf "$t" && echo "removed $t"; done || true
 fi
 # Neutralize Android.bp that need module types from deleted trees (csuite_test, etc.)
 echo "==> Stripping Android.bp that reference removed test harnesses"
-find frameworks packages device -name Android.bp -type f 2>/dev/null \
+# Only strip BPs that use deleted *module types* (cannot stub). Defaults gaps
+# are handled by ci_soong_stubs / art/test stubs below — do not delete mixed
+# production+test Android.bp files that merely reference those defaults.
+find frameworks packages device cts hardware system -name Android.bp -type f 2>/dev/null \
   | while read -r bp; do
       if grep -qE '\bcsuite_test\b|\bvts_config\b|\btradefed_binary\b' "$bp" 2>/dev/null; then
         rm -f "$bp" && echo "removed bp $bp"
@@ -110,10 +113,112 @@ find frameworks packages device -name Android.bp -type f 2>/dev/null \
 for d in \
   frameworks/base/libs/WindowManager/Shell/tests \
   frameworks/base/tests \
-  frameworks/base/apex/jobscheduler/framework/tests
+  frameworks/base/core/tests \
+  frameworks/base/services/tests \
+  frameworks/base/apex/jobscheduler/framework/tests \
+  frameworks/opt/telephony/tests
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
+
+# Re-create minimal defaults so remaining Android.bp (esp. art/*, tools/tradefederation)
+# can still be analyzed after we deleted the trees that owned these modules.
+echo "==> Installing soong stubs for deleted test defaults"
+mkdir -p art/test ci_soong_stubs
+cat >art/test/Android.bp <<'EOF'
+// CI stub: real art/test tree deleted for disk. Enough for soong to resolve
+// defaults:[] references from art/*/Android.bp without building tests.
+package {
+    default_applicable_licenses: ["art_license"],
+}
+
+cc_defaults {
+    name: "art_test_common_defaults",
+    defaults: ["art_defaults"],
+}
+
+cc_defaults {
+    name: "art_test_defaults",
+    defaults: ["art_test_common_defaults"],
+    host_supported: true,
+}
+
+art_cc_defaults {
+    name: "art_standalone_test_defaults",
+    defaults: ["art_test_common_defaults"],
+    host_supported: false,
+}
+
+art_cc_defaults {
+    name: "art_gtest_common_defaults",
+    gtest: false,
+}
+
+art_cc_defaults {
+    name: "art_gtest_defaults",
+    defaults: [
+        "art_test_defaults",
+        "art_gtest_common_defaults",
+    ],
+    host_supported: true,
+}
+
+art_cc_defaults {
+    name: "art_standalone_gtest_defaults",
+    defaults: [
+        "art_standalone_test_defaults",
+        "art_gtest_common_defaults",
+    ],
+}
+
+art_cc_defaults {
+    name: "libart-gtest-defaults",
+    defaults: ["art_defaults"],
+    host_supported: true,
+}
+EOF
+
+cat >ci_soong_stubs/Android.bp <<'EOF'
+// CI stubs for defaults modules owned by trees removed for disk reclaim.
+// LindroidUI does not build these test targets; stubs only satisfy soong analysis.
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+java_defaults {
+    name: "tradefed_defaults",
+}
+
+java_defaults {
+    name: "tradefed_errorprone_defaults",
+}
+
+java_defaults {
+    name: "framework-connectivity-test-defaults",
+}
+
+java_defaults {
+    name: "adservices-extended-mockito-defaults",
+}
+
+cc_defaults {
+    name: "sts_defaults",
+}
+
+cc_defaults {
+    name: "deqp_and_deps_defaults",
+}
+
+cc_defaults {
+    name: "cuttlefish_buildhost_only",
+    host_supported: true,
+    device_supported: false,
+}
+
+rust_defaults {
+    name: "rdroidtest.defaults",
+}
+EOF
 
 for must in kernel/configs cts prebuilts/bazel; do
   if [[ ! -d "$must" ]]; then
