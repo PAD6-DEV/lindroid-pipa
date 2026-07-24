@@ -43,14 +43,18 @@ sed -i "s/revision=\"lindroid-21\"/revision=\"$LINDROID_REF\"/" \
   .repo/local_manifests/lindroid-ui.xml
 
 echo "==> repo sync (-j$JOBS)"
+# Prefer continuing past single-repo checkout failures when remove-project missed a name
 repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
-  || repo sync -c -j4 --no-tags --optimized-fetch --current-branch
+  || repo sync -c -j4 --no-tags --optimized-fetch --force-sync --current-branch \
+  || repo sync -c -j1 --fail-fast --force-sync --current-branch || true
 
 # Drop bulky unused trees (need headroom for out/).
-# Keep: prebuilts/bazel, kernel/configs (incl. build/), cts (cts_defaults).
-# Soong parses the whole tree — removing cts breaks packages that depend on it.
+# Keep: prebuilts/bazel, kernel/configs/, cts.
+# Soong parses the WHOLE tree — deleting test/ leaves csuite_test undefined unless
+# we also strip Android.bp files that reference it.
 for d in \
   device/google \
+  device/linaro \
   prebuilts/clang/host/darwin-x86 \
   prebuilts/gcc/darwin-x86 prebuilts/qemu-kernel \
   external/webrtc toolchain/pyston \
@@ -65,11 +69,28 @@ for d in \
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
-# Drop module CTS/VTS style tests that pull cts_defaults if present under packages
+# Drop module test trees (optional disk reclaim)
 if [[ -d packages/modules ]]; then
   find packages/modules -type d -name tests -prune -print 2>/dev/null \
     | while read -r t; do rm -rf "$t" && echo "removed $t"; done || true
 fi
+# Neutralize Android.bp that need module types from deleted trees (csuite_test, etc.)
+echo "==> Stripping Android.bp that reference removed test harnesses"
+find frameworks packages device -name Android.bp -type f 2>/dev/null \
+  | while read -r bp; do
+      if grep -qE '\bcsuite_test\b|\bvts_config\b|\btradefed_binary\b' "$bp" 2>/dev/null; then
+        rm -f "$bp" && echo "removed bp $bp"
+      fi
+    done || true
+# Common large test trees under frameworks that pull deleted harnesses
+for d in \
+  frameworks/base/libs/WindowManager/Shell/tests \
+  frameworks/base/tests \
+  frameworks/base/apex/jobscheduler/framework/tests
+do
+  [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
+done
+
 for must in kernel/configs cts prebuilts/bazel; do
   if [[ ! -d "$must" ]]; then
     echo "ERROR: required path missing after sync: $must" >&2
@@ -131,6 +152,13 @@ do
 done
 [[ "$LUNCH_OK" -eq 1 ]] || { echo "No valid lunch combo worked" >&2; exit 1; }
 set -u
+
+# Ensure soong can analyze before a long compile
+echo "==> soong smoke (nothing)"
+if ! m nothing -j"$JOBS"; then
+  echo "soong still broken after cleanup — see errors above" >&2
+  exit 1
+fi
 
 echo "==> m LindroidUI (-j$JOBS)"
 m LindroidUI -j"$JOBS"

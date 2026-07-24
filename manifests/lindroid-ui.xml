@@ -5,4 +5,13 @@
 
   <project name="Linux-on-droid/vendor_lindroid" path="vendor/lindroid"
            remote="github" revision="lindroid-21" />
+
+  <!-- Skip broken/unneeded checkouts (saves disk + avoids sync failures). -->
+  <remove-project name="device/linaro/hikey-kernel" />
+  <remove-project name="device/linaro/hikey" />
+  <remove-project name="device/linaro/hikey64" />
+  <remove-project name="device/linaro/hikey960" />
+  <remove-project name="kernel/hikey-modules" />
+  <remove-project name="hardware/linaro/bootloader/arm-trusted-firmware" />
+  <remove-project name="hardware/linaro/bootloader/edk2" />
 </manifest>
