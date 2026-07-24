@@ -46,7 +46,8 @@ echo "==> repo sync (-j$JOBS)"
 repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
   || repo sync -c -j4 --no-tags --optimized-fetch --current-branch
 
-# Drop bulky unused trees (need headroom for out/ — sync alone ~120G)
+# Drop bulky unused trees (need headroom for out/).
+# Do NOT remove prebuilts/bazel — soong_ui lunch requires it.
 for d in \
   device/google kernel prebuilts/clang/host/darwin-x86 \
   prebuilts/gcc/darwin-x86 prebuilts/qemu-kernel \
@@ -54,12 +55,11 @@ for d in \
   art/test cts development/samples development/apps \
   external/chromium-webview external/deqp \
   prebuilts/asuite prebuilts/android-emulator \
-  prebuilts/bazel prebuilts/remoteexecution-client \
+  prebuilts/remoteexecution-client \
   tools/ndkports tools/vendor
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
-# Drop leftover .git objects from removed trees under .repo if huge
 df -h . || true
 
 echo "==> Disk after sync"
