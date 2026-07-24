@@ -47,19 +47,24 @@ repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
   || repo sync -c -j4 --no-tags --optimized-fetch --current-branch
 
 # Drop bulky unused trees (need headroom for out/).
-# Do NOT remove prebuilts/bazel — soong_ui lunch requires it.
+# Keep: prebuilts/bazel (soong), kernel/configs (vintf / kernel-config-soong-rules).
 for d in \
-  device/google kernel prebuilts/clang/host/darwin-x86 \
+  device/google \
+  prebuilts/clang/host/darwin-x86 \
   prebuilts/gcc/darwin-x86 prebuilts/qemu-kernel \
   external/webrtc toolchain/pyston \
   art/test cts development/samples development/apps \
   external/chromium-webview external/deqp \
   prebuilts/asuite prebuilts/android-emulator \
   prebuilts/remoteexecution-client \
-  tools/ndkports tools/vendor
+  tools/ndkports tools/vendor \
+  kernel/common kernel/build kernel/tests \
+  kernel/prebuilts kernel/hikey-modules \
+  kernel/configs/build
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
+# Never remove kernel/configs itself
 df -h . || true
 
 echo "==> Disk after sync"
