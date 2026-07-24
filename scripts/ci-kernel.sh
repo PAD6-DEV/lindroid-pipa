@@ -74,6 +74,7 @@ PATH_SAVE="$PATH"
 bash scripts/kconfig/merge_config.sh -m -O out "${FRAGMENTS[@]}"
 make O=out ARCH=arm64 olddefconfig
 
+# Lineage sm8250 + modern clang: unused vars/labels treated as errors otherwise
 MAKE_ARGS=(
   ARCH=arm64
   SUBARCH=arm64
@@ -85,6 +86,7 @@ MAKE_ARGS=(
   CROSS_COMPILE=aarch64-linux-gnu-
   CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
   CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+  KCFLAGS='-Wno-unused-variable -Wno-unused-label -Wno-error=unused-variable -Wno-error=unused-label'
   -j"$JOBS"
 )
 

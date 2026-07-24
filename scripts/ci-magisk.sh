@@ -46,14 +46,21 @@ echo "==> repo sync (-j$JOBS)"
 repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
   || repo sync -c -j4 --no-tags --optimized-fetch --current-branch
 
-# Drop bulky unused trees if present (best-effort disk reclaim)
+# Drop bulky unused trees (need headroom for out/ — sync alone ~120G)
 for d in \
   device/google kernel prebuilts/clang/host/darwin-x86 \
   prebuilts/gcc/darwin-x86 prebuilts/qemu-kernel \
-  external/webrtc toolchain/pyston
+  external/webrtc toolchain/pyston \
+  art/test cts development/samples development/apps \
+  external/chromium-webview external/deqp \
+  prebuilts/asuite prebuilts/android-emulator \
+  prebuilts/bazel prebuilts/remoteexecution-client \
+  tools/ndkports tools/vendor
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
+# Drop leftover .git objects from removed trees under .repo if huge
+df -h . || true
 
 echo "==> Disk after sync"
 df -h . || true
@@ -75,18 +82,38 @@ if [[ -d frameworks/native/.git ]]; then
   cd "$WORK"
 fi
 
-# Ensure vendor/lindroid is on requested ref
+# Ensure vendor/lindroid is on requested ref (repo uses remote "github", not origin)
 if [[ -d vendor/lindroid/.git ]]; then
-  git -C vendor/lindroid fetch --depth 1 origin "$LINDROID_REF" || true
-  git -C vendor/lindroid checkout -f FETCH_HEAD 2>/dev/null \
+  VL_REMOTE=github
+  git -C vendor/lindroid remote get-url github >/dev/null 2>&1 \
+    || VL_REMOTE="$(git -C vendor/lindroid remote | head -1)"
+  git -C vendor/lindroid fetch --depth 1 "$VL_REMOTE" "$LINDROID_REF" || true
+  git -C vendor/lindroid checkout -B "$LINDROID_REF" FETCH_HEAD 2>/dev/null \
     || git -C vendor/lindroid checkout -f "$LINDROID_REF" || true
 fi
 
 # --- build ---
+# android-14.0.0_r75+ requires product-release-variant (e.g. aosp_arm64-ap2a-eng)
 set +u
 # shellcheck disable=SC1091
 source build/envsetup.sh
-lunch aosp_arm64-eng
+LUNCH_OK=0
+for combo in \
+  "${LUNCH_COMBO:-}" \
+  "aosp_arm64-ap2a-eng" \
+  "aosp_arm64-ap2a-userdebug" \
+  "aosp_arm64-aosp_current-eng" \
+  "aosp_arm64-trunk_staging-eng" \
+  "aosp_arm64-eng"
+do
+  [[ -z "$combo" ]] && continue
+  echo "==> trying lunch $combo"
+  if lunch "$combo"; then
+    LUNCH_OK=1
+    break
+  fi
+done
+[[ "$LUNCH_OK" -eq 1 ]] || { echo "No valid lunch combo worked" >&2; exit 1; }
 set -u
 
 echo "==> m LindroidUI (-j$JOBS)"
