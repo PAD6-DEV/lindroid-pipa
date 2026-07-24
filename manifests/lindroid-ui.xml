@@ -1,17 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Local manifest: LindroidUI Magisk build (generic AOSP, not full pipa ROM). -->
+<!-- Local manifest: LindroidUI Magisk build (generic AOSP, not full pipa ROM).
+     Do NOT use remove-project unless the name exists on this AOSP tag —
+     invalid remove-project aborts the entire repo sync. -->
 <manifest>
   <remote name="github" fetch="https://github.com/" />
 
   <project name="Linux-on-droid/vendor_lindroid" path="vendor/lindroid"
            remote="github" revision="lindroid-21" />
-
-  <!-- Skip broken/unneeded checkouts (saves disk + avoids sync failures). -->
-  <remove-project name="device/linaro/hikey-kernel" />
-  <remove-project name="device/linaro/hikey" />
-  <remove-project name="device/linaro/hikey64" />
-  <remove-project name="device/linaro/hikey960" />
-  <remove-project name="kernel/hikey-modules" />
-  <remove-project name="hardware/linaro/bootloader/arm-trusted-firmware" />
-  <remove-project name="hardware/linaro/bootloader/edk2" />
 </manifest>

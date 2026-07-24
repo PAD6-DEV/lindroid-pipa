@@ -43,10 +43,34 @@ sed -i "s/revision=\"lindroid-21\"/revision=\"$LINDROID_REF\"/" \
   .repo/local_manifests/lindroid-ui.xml
 
 echo "==> repo sync (-j$JOBS)"
-# Prefer continuing past single-repo checkout failures when remove-project missed a name
-repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
-  || repo sync -c -j4 --no-tags --optimized-fetch --force-sync --current-branch \
-  || repo sync -c -j1 --fail-fast --force-sync --current-branch || true
+# Continue if a single project (e.g. hikey-kernel) fails checkout
+set +e
+repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch
+SYNC_RC=$?
+if [[ "$SYNC_RC" -ne 0 ]]; then
+  echo "repo sync returned $SYNC_RC — retry force-sync"
+  repo sync -c -j4 --no-tags --optimized-fetch --force-sync --current-branch
+  SYNC_RC=$?
+fi
+set -e
+# Critical paths must exist even if some device trees failed
+for must in build/make build/soong frameworks/base prebuilts/build-tools; do
+  if [[ ! -d "$must" ]]; then
+    echo "ERROR: core path missing after sync: $must (sync rc=$SYNC_RC)" >&2
+    exit 1
+  fi
+done
+# kernel/configs is a separate project — sync it explicitly if missing
+if [[ ! -d kernel/configs ]]; then
+  echo "==> syncing kernel/configs explicitly"
+  repo sync -c -j4 kernel/configs || \
+    git clone --depth 1 --branch "$AOSP_TAG" \
+      https://android.googlesource.com/kernel/configs kernel/configs
+fi
+if [[ ! -d cts ]]; then
+  echo "==> syncing cts explicitly"
+  repo sync -c -j4 cts || true
+fi
 
 # Drop bulky unused trees (need headroom for out/).
 # Keep: prebuilts/bazel, kernel/configs/, cts.
