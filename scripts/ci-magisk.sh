@@ -47,27 +47,35 @@ repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
   || repo sync -c -j4 --no-tags --optimized-fetch --current-branch
 
 # Drop bulky unused trees (need headroom for out/).
-# Keep prebuilts/bazel and ALL of kernel/configs (kernel-config-soong-rules lives
-# under kernel/configs/build — do not delete that path).
+# Keep: prebuilts/bazel, kernel/configs (incl. build/), cts (cts_defaults).
+# Soong parses the whole tree — removing cts breaks packages that depend on it.
 for d in \
   device/google \
   prebuilts/clang/host/darwin-x86 \
   prebuilts/gcc/darwin-x86 prebuilts/qemu-kernel \
   external/webrtc toolchain/pyston \
-  art/test cts development/samples development/apps \
+  art/test development/samples development/apps \
   external/chromium-webview external/deqp \
   prebuilts/asuite prebuilts/android-emulator \
   prebuilts/remoteexecution-client \
   tools/ndkports tools/vendor \
   kernel/common kernel/build kernel/tests \
-  kernel/prebuilts kernel/hikey-modules
+  kernel/prebuilts kernel/hikey-modules \
+  test platform_testing
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
-if [[ ! -d kernel/configs ]]; then
-  echo "ERROR: kernel/configs missing after sync — required for soong" >&2
-  exit 1
+# Drop module CTS/VTS style tests that pull cts_defaults if present under packages
+if [[ -d packages/modules ]]; then
+  find packages/modules -type d -name tests -prune -print 2>/dev/null \
+    | while read -r t; do rm -rf "$t" && echo "removed $t"; done || true
 fi
+for must in kernel/configs cts prebuilts/bazel; do
+  if [[ ! -d "$must" ]]; then
+    echo "ERROR: required path missing after sync: $must" >&2
+    exit 1
+  fi
+done
 df -h . || true
 
 echo "==> Disk after sync"
