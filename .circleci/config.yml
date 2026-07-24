@@ -1,5 +1,4 @@
-# CircleCI: LindroidUI Magisk (AOSP) — ~150GB machine disk
-# Full ROM brunch will not fit; LindroidUI-only is borderline but viable.
+# CircleCI: LindroidUI Magisk (AOSP) — Linux VM machine/large (~150GB disk)
 version: 2.1
 
 parameters:
@@ -17,12 +16,13 @@ jobs:
   magisk:
     machine:
       image: ubuntu-2204:current
-    resource_class: xlarge
+    resource_class: large
     environment:
       AOSP_TAG: << pipeline.parameters.aosp_tag >>
       LINDROID_REF: << pipeline.parameters.lindroid_ref >>
-      WORK_DIR: /tmp/lindroid-aosp
-      ARTIFACT_DIR: /tmp/lindroid-artifacts
+      WORK_DIR: /home/circleci/lindroid-aosp
+      ARTIFACT_DIR: /home/circleci/lindroid-artifacts
+      BUILD_JOBS: "4"
     steps:
       - checkout
       - run:
@@ -50,17 +50,18 @@ jobs:
           name: Disk after
           command: df -h; ls -lh "$ARTIFACT_DIR"
       - store_artifacts:
-          path: /tmp/lindroid-artifacts
+          path: /home/circleci/lindroid-artifacts
           destination: lindroid-pipa-magisk
 
   kernel:
     machine:
       image: ubuntu-2204:current
-    resource_class: xlarge
+    resource_class: large
     environment:
       KERNEL_BRANCH: lineage-22.2
-      WORK_DIR: /tmp/lindroid-kernel
-      ARTIFACT_DIR: /tmp/lindroid-artifacts
+      WORK_DIR: /home/circleci/lindroid-kernel
+      ARTIFACT_DIR: /home/circleci/lindroid-artifacts
+      BUILD_JOBS: "4"
     steps:
       - checkout
       - run:
@@ -78,7 +79,7 @@ jobs:
             mkdir -p "$WORK_DIR" "$ARTIFACT_DIR"
             ./scripts/ci-kernel.sh
       - store_artifacts:
-          path: /tmp/lindroid-artifacts
+          path: /home/circleci/lindroid-artifacts
           destination: lindroid-pipa-kernel
 
 workflows:
