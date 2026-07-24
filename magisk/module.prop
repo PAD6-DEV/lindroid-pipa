@@ -1,10 +1,9 @@
-# Lindroid Magisk module template (pipa)
-# Replace LindroidUI + libs with builds for your ROM's ro.system.build.id
-# Upstream: https://github.com/fish4terrisa-MSDSM/lindroid_module
+# Lindroid Magisk module (pipa)
+# Built in CI from AOSP + vendor_lindroid (LindroidUI)
 
 id=lindroid_pipa
 name=Lindroid (pipa)
-version=v0.1
-versionCode=1
+version=v0.2
+versionCode=2
 author=PAD6-DEV
-description=Lindroid apphwc for Xiaomi Pad 6 — replace APK/libs before flash
+description=LindroidUI apphwc for Xiaomi Pad 6 — CI-built against AOSP arm64

@@ -16,7 +16,7 @@ Releases: https://github.com/PAD6-DEV/lindroid-pipa/releases
 | Job | Output |
 |-----|--------|
 | **Build Lindroid kernel** | Compiles `Image` from LineageOS `android_kernel_xiaomi_sm8250` + EVDI + LXC configs → **AnyKernel3 zip** |
-| Magisk module | Zip skeleton |
+| **Build LindroidUI Magisk** | AOSP sync + `m LindroidUI` → **lindroid-pipa-magisk.zip** (APK + libs) |
 | Release | Uploads kernel zip + Image + Magisk zip to GitHub Releases (tags `v*`, `main` nightlies, or workflow_dispatch) |
 
 Manual run: Actions → **Lindroid pipa** → Run workflow → pick kernel branch (`lineage-22.2` default).

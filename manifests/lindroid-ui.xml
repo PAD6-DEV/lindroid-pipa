@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Local manifest: LindroidUI Magisk build (generic AOSP, not full pipa ROM). -->
+<manifest>
+  <remote name="github" fetch="https://github.com/" />
+
+  <project name="Linux-on-droid/vendor_lindroid" path="vendor/lindroid"
+           remote="github" revision="lindroid-21" />
+</manifest>

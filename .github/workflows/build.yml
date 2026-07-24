@@ -18,6 +18,11 @@ on:
           - lineage-22.2
           - lineage-23.0
           - lineage-23.2
+      aosp_tag:
+        description: AOSP tag for LindroidUI Magisk build
+        required: true
+        default: android-14.0.0_r75
+        type: string
       create_release:
         description: Publish GitHub Release with kernel + Magisk zip
         type: boolean
@@ -32,6 +37,7 @@ concurrency:
 
 env:
   KERNEL_BRANCH: ${{ github.event.inputs.kernel_branch || 'lineage-22.2' }}
+  AOSP_TAG: ${{ github.event.inputs.aosp_tag || 'android-14.0.0_r75' }}
 
 jobs:
   kernel:
@@ -93,22 +99,43 @@ jobs:
           compression-level: 0
 
   magisk:
-    name: Magisk module zip
+    name: Build LindroidUI Magisk module
     runs-on: ubuntu-latest
+    timeout-minutes: 480
     steps:
       - uses: actions/checkout@v4
 
-      - name: Package module
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip curl
-          chmod +x scripts/ci-magisk.sh
+          sudo apt-get install -y git curl zip unzip python3 python-is-python3 \
+            openjdk-17-jdk rsync libxml2-utils xsltproc
+
+      - name: Build LindroidUI + Magisk zip
+        env:
+          AOSP_TAG: ${{ env.AOSP_TAG }}
+          LINDROID_REF: lindroid-21
+        run: |
+          chmod +x scripts/*.sh
           ./scripts/ci-magisk.sh
 
       - uses: actions/upload-artifact@v4
         with:
           name: lindroid-pipa-magisk
-          path: artifacts/
+          path: |
+            artifacts/lindroid-pipa-magisk.zip
+            artifacts/install-magisk.md
           if-no-files-found: error
 
   release:
@@ -156,12 +183,12 @@ jobs:
           name: Lindroid pipa ${{ steps.stage.outputs.tag }}
           body: |
             ## Artifacts
-            - **lindroid-pipa-anykernel.zip** — flash in recovery / Magisk (AnyKernel3, `pipa`)
+            - **lindroid-pipa-anykernel.zip** — Lindroid kernel (AnyKernel3, `pipa`)
             - **Image** — raw kernel image
-            - **lindroid-pipa-magisk.zip** — Magisk module skeleton (replace LindroidUI libs for your `ro.system.build.id`)
+            - **lindroid-pipa-magisk.zip** — Magisk module with **CI-built LindroidUI** + libs (`${{ env.AOSP_TAG }}` / `aosp_arm64`)
 
-            Kernel branch: `${{ env.KERNEL_BRANCH }}` (LineageOS `android_kernel_xiaomi_sm8250`)
-            Includes Lindroid EVDI + LXC namespace configs.
+            Kernel branch: `${{ env.KERNEL_BRANCH }}`
+            SELinux: `setenforce 0` before first LindroidUI launch.
 
             See [docs/install-magisk.md](https://github.com/${{ github.repository }}/blob/main/docs/install-magisk.md).
           files: dist/*

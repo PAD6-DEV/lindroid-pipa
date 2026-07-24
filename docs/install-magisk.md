@@ -31,25 +31,13 @@ Artifacts also include raw `Image` + `kernel.config` for debugging.
 
 ## 3. Magisk module (LindroidUI)
 
-Upstream module only ships the **apphwc** side. You must supply binaries built against your ROM API:
+CI builds **LindroidUI** + JNI/composer against AOSP `aosp_arm64` (`android-14.0.0_r75` by default) and publishes **lindroid-pipa-magisk.zip**.
 
-1. Note `ro.system.build.id`  
-2. Sync AOSP (or Lineage) matching that tag (generic_arm64 is OK for `mm`)  
-3. Clone `vendor_lindroid`, `libhybris`, `external_lxc`; apply frameworks/native Lindroid pick  
-4. `mm LindroidUI`  
-5. Copy into the Magisk zip from this repo / upstream release:
+1. Flash that zip in Magisk → reboot  
+2. Prefer a ROM whose API matches the AOSP tag used in the release notes  
+3. If the app crashes on a mismatched `ro.system.build.id`, rebuild with workflow input `aosp_tag` set to a closer tag (or rebuild locally with `./scripts/ci-magisk.sh`)
 
-```
-system_ext/app/LindroidUI/
-system_ext/lib64/libjni_lindroidui.so
-system_ext/lib64/vendor.lindroid.composer-ndk.so
-```
-
-6. Flash module in Magisk → reboot  
-
-**Do not** flash an upstream release zip without replacing those files for your build id.
-
-Details: https://github.com/fish4terrisa-MSDSM/lindroid_module
+Still Magisk/apphwc-only — LXC/libhybris container side is separate (upstream Lindroid docs).
 
 ## 4. SELinux + soft reboot
 

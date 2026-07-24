@@ -1,4 +1,3 @@
 #!/system/bin/sh
-# Optional: remind permissive SELinux (module does not force it)
-ui_print "- Lindroid pipa: setenforce 0 before first LindroidUI launch"
-ui_print "- Replace system_ext LindroidUI + lib64/*.so with ROM-matched builds"
+ui_print "- Lindroid pipa Magisk module (CI-built LindroidUI)"
+ui_print "- Set SELinux permissive before first launch: setenforce 0"
