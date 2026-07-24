@@ -47,7 +47,8 @@ repo sync -c -j"$JOBS" --no-tags --optimized-fetch --prune --current-branch \
   || repo sync -c -j4 --no-tags --optimized-fetch --current-branch
 
 # Drop bulky unused trees (need headroom for out/).
-# Keep: prebuilts/bazel (soong), kernel/configs (vintf / kernel-config-soong-rules).
+# Keep prebuilts/bazel and ALL of kernel/configs (kernel-config-soong-rules lives
+# under kernel/configs/build — do not delete that path).
 for d in \
   device/google \
   prebuilts/clang/host/darwin-x86 \
@@ -59,12 +60,14 @@ for d in \
   prebuilts/remoteexecution-client \
   tools/ndkports tools/vendor \
   kernel/common kernel/build kernel/tests \
-  kernel/prebuilts kernel/hikey-modules \
-  kernel/configs/build
+  kernel/prebuilts kernel/hikey-modules
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
-# Never remove kernel/configs itself
+if [[ ! -d kernel/configs ]]; then
+  echo "ERROR: kernel/configs missing after sync — required for soong" >&2
+  exit 1
+fi
 df -h . || true
 
 echo "==> Disk after sync"
