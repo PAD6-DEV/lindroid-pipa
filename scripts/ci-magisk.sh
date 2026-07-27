@@ -89,10 +89,19 @@ for d in \
   tools/ndkports tools/vendor \
   kernel/common kernel/build kernel/tests \
   kernel/prebuilts kernel/hikey-modules \
-  test platform_testing
+  test
 do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
+# platform_testing is large, but frameworks/base needs platform-test-annotations.
+# Keep only libraries/annotations; drop the rest.
+if [[ -d platform_testing ]]; then
+  echo "==> Pruning platform_testing (keep libraries/annotations)"
+  find platform_testing -mindepth 1 -maxdepth 1 ! -name libraries -exec rm -rf {} + 2>/dev/null || true
+  if [[ -d platform_testing/libraries ]]; then
+    find platform_testing/libraries -mindepth 1 -maxdepth 1 ! -name annotations -exec rm -rf {} + 2>/dev/null || true
+  fi
+fi
 # Drop module test trees (optional disk reclaim)
 if [[ -d packages/modules ]]; then
   find packages/modules -type d \( -name tests -o -name unittest -o -name unit_tests \) -prune -print 2>/dev/null \
@@ -307,7 +316,59 @@ cc_defaults {
 rust_defaults {
     name: "rdroidtest.defaults",
 }
+
+// Fallback if platform_testing/libraries/annotations was missing after sync/prune.
+java_library_static {
+    name: "platform-test-annotations",
+    host_supported: true,
+    sdk_version: "current",
+    java_version: "11",
+}
+
+java_library_host {
+    name: "platform-test-annotations-host",
+    static_libs: ["platform-test-annotations"],
+}
 EOF
+
+# Avoid duplicate module if the real annotations tree survived prune.
+if [[ -f platform_testing/libraries/annotations/Android.bp ]]; then
+  python3 - <<'PY'
+from pathlib import Path
+import re
+p = Path("ci_soong_stubs/Android.bp")
+text = p.read_text()
+names = {"platform-test-annotations", "platform-test-annotations-host"}
+result = []
+i = 0
+while i < len(text):
+    m = re.search(r"(?:java_library_static|java_library_host|java_library)\s*\{", text[i:])
+    if not m:
+        result.append(text[i:])
+        break
+    start = i + m.start()
+    result.append(text[i:start])
+    brace = text.find("{", start)
+    depth, j = 1, brace + 1
+    while j < len(text) and depth:
+        if text[j] == "{":
+            depth += 1
+        elif text[j] == "}":
+            depth -= 1
+        j += 1
+    block = text[start:j]
+    nm = re.search(r'name:\s*"([^"]+)"', block)
+    if nm and nm.group(1) in names:
+        if j < len(text) and text[j] == "\n":
+            j += 1
+        i = j
+        continue
+    result.append(block)
+    i = j
+p.write_text("".join(result))
+print("dropped platform-test-annotations stubs (real tree present)")
+PY
+fi
 
 for must in kernel/configs cts prebuilts/bazel; do
   if [[ ! -d "$must" ]]; then
