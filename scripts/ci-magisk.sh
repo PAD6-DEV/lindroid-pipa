@@ -121,6 +121,41 @@ do
   [[ -d "$d" ]] && rm -rf "$d" && echo "removed $d" || true
 done
 
+# sepolicy's fuzzer_bindings_test panics if any bound cc_fuzz is missing
+# (e.g. resolv_service_fuzzer after Connectivity test prune). Not needed for LindroidUI.
+if [[ -f system/sepolicy/Android.bp ]]; then
+  echo "==> Disabling fuzzer_bindings_test (missing fuzzers after disk prune)"
+  python3 - <<'PY'
+from pathlib import Path
+p = Path("system/sepolicy/Android.bp")
+text = p.read_text()
+out, i, n = [], 0, len(text)
+while i < n:
+    j = text.find("fuzzer_bindings_test", i)
+    if j < 0:
+        out.append(text[i:])
+        break
+    out.append(text[i:j])
+    k = text.find("{", j)
+    if k < 0:
+        out.append(text[j:])
+        break
+    depth, m = 1, k + 1
+    while m < n and depth:
+        if text[m] == "{":
+            depth += 1
+        elif text[m] == "}":
+            depth -= 1
+        m += 1
+    # drop the module; skip trailing newline
+    if m < n and text[m] == "\n":
+        m += 1
+    i = m
+p.write_text("".join(out))
+print("removed fuzzer_bindings_test from system/sepolicy/Android.bp")
+PY
+fi
+
 # Re-create minimal defaults so remaining Android.bp (esp. art/*, tools/tradefederation)
 # can still be analyzed after we deleted the trees that owned these modules.
 echo "==> Installing soong stubs for deleted test defaults"
