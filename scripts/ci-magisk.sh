@@ -122,24 +122,33 @@ do
 done
 
 # sepolicy's fuzzer_bindings_test panics if any bound cc_fuzz is missing
-# (e.g. resolv_service_fuzzer after Connectivity test prune). Not needed for LindroidUI.
-if [[ -f system/sepolicy/Android.bp ]]; then
-  echo "==> Disabling fuzzer_bindings_test (missing fuzzers after disk prune)"
-  python3 - <<'PY'
+# (e.g. resolv_service_fuzzer after Connectivity test prune). Module lives under
+# system/sepolicy/contexts/ on AOSP 14 — strip all copies and neutralize the mutator.
+echo "==> Disabling fuzzer_bindings_test (missing fuzzers after disk prune)"
+find system/sepolicy -name Android.bp -type f 2>/dev/null \
+  | while read -r bp; do
+      grep -q 'fuzzer_bindings_test' "$bp" 2>/dev/null || continue
+      python3 - "$bp" <<'PY'
+import sys
 from pathlib import Path
-p = Path("system/sepolicy/Android.bp")
+p = Path(sys.argv[1])
 text = p.read_text()
+if "fuzzer_bindings_test" not in text:
+    raise SystemExit(0)
 out, i, n = [], 0, len(text)
+removed = 0
 while i < n:
     j = text.find("fuzzer_bindings_test", i)
     if j < 0:
         out.append(text[i:])
         break
-    out.append(text[i:j])
+    # Only strip module definitions: "fuzzer_bindings_test {"
     k = text.find("{", j)
-    if k < 0:
-        out.append(text[j:])
-        break
+    if k < 0 or not text[j:k].rstrip().endswith("fuzzer_bindings_test"):
+        out.append(text[i:j+len("fuzzer_bindings_test")])
+        i = j + len("fuzzer_bindings_test")
+        continue
+    out.append(text[i:j])
     depth, m = 1, k + 1
     while m < n and depth:
         if text[m] == "{":
@@ -147,12 +156,57 @@ while i < n:
         elif text[m] == "}":
             depth -= 1
         m += 1
-    # drop the module; skip trailing newline
     if m < n and text[m] == "\n":
         m += 1
+    removed += 1
     i = m
-p.write_text("".join(out))
-print("removed fuzzer_bindings_test from system/sepolicy/Android.bp")
+if removed:
+    p.write_text("".join(out))
+    print(f"removed {removed} fuzzer_bindings_test module(s) from {p}")
+PY
+    done || true
+VB=system/sepolicy/build/soong/validate_bindings.go
+if [[ -f "$VB" ]]; then
+  # soong_build runs with env -i; don't rely on ALLOW_MISSING_DEPENDENCIES alone
+  python3 - "$VB" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+text = p.read_text()
+old = '''func addFuzzerConfigDeps(ctx android.BottomUpMutatorContext) {
+	if _, ok := ctx.Module().(*fuzzerBindingsTestModule); ok {
+		for _, fuzzers := range ServiceFuzzerBindings {
+			for _, fuzzer := range fuzzers {
+				if !ctx.OtherModuleExists(fuzzer) && !ctx.Config().AllowMissingDependencies() {
+					panic(fmt.Errorf("Fuzzer doesn't exist : %s", fuzzer))
+				}
+			}
+		}
+	}
+}'''
+new = '''func addFuzzerConfigDeps(ctx android.BottomUpMutatorContext) {
+	// CI: disk prune removes many cc_fuzz targets; skip binding enforcement.
+	return
+}'''
+if old in text:
+    p.write_text(text.replace(old, new, 1))
+    print(f"patched {p} addFuzzerConfigDeps no-op")
+elif "CI: disk prune removes many cc_fuzz" in text:
+    print(f"already patched {p}")
+else:
+    # Fallback: blunt early-return after function signature
+    import re
+    text2, n = re.subn(
+        r'(func addFuzzerConfigDeps\(ctx android\.BottomUpMutatorContext\) \{\n)',
+        r'\1\treturn // CI: skip fuzzer binding checks\n',
+        text,
+        count=1,
+    )
+    if n:
+        p.write_text(text2)
+        print(f"patched {p} with early return")
+    else:
+        print(f"WARNING: could not patch {p}", file=sys.stderr)
 PY
 fi
 
